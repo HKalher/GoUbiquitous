@@ -17,8 +17,11 @@ package com.example.android.sunshine;
 
 import android.content.Intent;
 import android.database.Cursor;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
@@ -35,12 +38,29 @@ import android.widget.ProgressBar;
 import com.example.android.sunshine.data.SunshinePreferences;
 import com.example.android.sunshine.data.WeatherContract;
 import com.example.android.sunshine.sync.SunshineSyncUtils;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.Asset;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEvent;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
+
+import java.io.ByteArrayOutputStream;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 public class MainActivity extends AppCompatActivity implements
         LoaderManager.LoaderCallbacks<Cursor>,
-        ForecastAdapter.ForecastAdapterOnClickHandler {
+        ForecastAdapter.ForecastAdapterOnClickHandler,
+        GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener,
+        DataApi.DataListener{
 
-    private final String TAG = MainActivity.class.getSimpleName();
+//    private final String TAG = MainActivity.class.getSimpleName();
 
     /*
      * The columns of data that we are interested in displaying within our MainActivity's list of
@@ -79,6 +99,14 @@ public class MainActivity extends AppCompatActivity implements
 
     private ProgressBar mLoadingIndicator;
 
+    // WatchFace
+    private static final String COUNT_KEY = "com.eaxmple.key.count";
+    private static final String COUNT_PATH = "/count";
+    private static final String TEMPERATURE_PATH = "/temperature";
+    private GoogleApiClient mGoogleApiClient;
+    private ScheduledExecutorService mSEService;
+    private ScheduledFuture<?> mScheduledFuture;
+    // WatchFace
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -154,6 +182,16 @@ public class MainActivity extends AppCompatActivity implements
 
         SunshineSyncUtils.initialize(this);
 
+        // WatchFace
+        mSEService = new ScheduledThreadPoolExecutor(1);
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addApi(Wearable.API)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .build();
+
+        mGoogleApiClient.connect();
+        // WatchFace
     }
 
     /**
@@ -343,4 +381,63 @@ public class MainActivity extends AppCompatActivity implements
 
         return super.onOptionsItemSelected(item);
     }
+
+    // WatchFace
+
+    private String TAG = "WatchFace";
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mGoogleApiClient.connect();
+    }
+
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+        Log.d(TAG, "Connection established to GAC");
+        Wearable.DataApi.addListener(mGoogleApiClient, this);
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+        Log.d(TAG, "Connection to GAC suspended");
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+        Log.d(TAG, "Connection to GAC failed");
+    }
+
+    @Override
+    public void onDataChanged(DataEventBuffer dataEventBuffer) {
+
+        for(DataEvent dataEvent : dataEventBuffer){
+            if(dataEvent.getType() == DataEvent.TYPE_CHANGED){
+                Log.d(TAG, "data changed");
+            }else if(dataEvent.getType() == DataEvent.TYPE_DELETED){
+                Log.d(TAG, "data deleted");
+            }
+        }
+
+    }
+
+    public void updateData(String minTemp, String maxTemp, Bitmap cloudBitmap){
+
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        cloudBitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream);
+        Asset asset = Asset.createFromBytes(byteArrayOutputStream.toByteArray());
+
+        int currentTime = (int) System.currentTimeMillis();
+        PutDataMapRequest putDataMapRequest = PutDataMapRequest.create(COUNT_PATH);
+        putDataMapRequest.getDataMap().putString("minTemp",minTemp);
+        putDataMapRequest.getDataMap().putString("maxTemp", maxTemp);
+        putDataMapRequest.getDataMap().putInt("value", currentTime);
+        putDataMapRequest.getDataMap().putAsset("cloudImage", asset);
+
+        PutDataRequest putDataRequest = putDataMapRequest.asPutDataRequest();
+        putDataRequest.setUrgent();
+        Wearable.DataApi.putDataItem(mGoogleApiClient, putDataRequest);
+
+    }
+    // WatchFace
 }

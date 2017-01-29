@@ -421,10 +421,10 @@ public class MyWatchFace extends CanvasWatchFaceService {
                 if (item.getUri().getPath().compareTo(COUNT_PATH) == 0) {
                     DataMap dataMap = DataMapItem.fromDataItem(item).getDataMap();
 
-                    maxTemp = dataMap.getString("max");
-                    minTemp = dataMap.getString("min");
+                    maxTemp = dataMap.getString("maxTemp");
+                    minTemp = dataMap.getString("minTemp");
 
-                    Asset image = dataMap.getAsset("image");
+                    Asset image = dataMap.getAsset("cloudImage");
 
                     LoadBitmapTask loadBitmapTask = new LoadBitmapTask();
                     loadBitmapTask.execute(image);
