@@ -18,7 +18,9 @@ package com.example.android.sunshine;
 import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.support.annotation.NonNull;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
@@ -219,7 +221,17 @@ class ForecastAdapter extends RecyclerView.Adapter<ForecastAdapter.ForecastAdapt
         // WatchFace
         if(position == 0){
             if(mContext instanceof MainActivity){
-                Bitmap bitmap = ((BitmapDrawable) forecastAdapterViewHolder.iconView.getDrawable()).getBitmap();
+                Drawable drawable = forecastAdapterViewHolder.iconView.getDrawable();
+                Bitmap bitmap;
+                if(drawable instanceof BitmapDrawable){
+                    bitmap = ((BitmapDrawable) forecastAdapterViewHolder.iconView.getDrawable()).getBitmap();
+                }else {
+                    Bitmap tempBitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+                    Canvas canvas = new Canvas(tempBitmap);
+                    drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+                    drawable.draw(canvas);
+                    bitmap = tempBitmap;
+                }
                 ((MainActivity) mContext).updateData(lowString, highString, bitmap);
             }
         }
